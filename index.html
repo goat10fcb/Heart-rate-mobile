@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magene 心率监测器</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-sub: #94a3b8;
+            --primary: #ef4444;
+            --primary-glow: rgba(239, 68, 68, 0.5);
+            --success: #10b981;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            background: var(--bg-card);
+            padding: 2.5rem 2rem;
+            border-radius: 30px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
+            max-width: 380px;
+            width: 90%;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: var(--text-sub);
+            margin: 0 0 2.5rem 0;
+            letter-spacing: 1px;
+        }
+
+        .heart-wrapper {
+            position: relative;
+            width: 160px;
+            height: 160px;
+            margin: 0 auto;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(239, 68, 68, 0.1);
+            box-shadow: inset 0 0 20px rgba(239, 68, 68, 0.1);
+        }
+
+        .heart-wrapper::before,
+        .heart-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 50%;
+            border: 2px solid var(--primary-glow);
+            opacity: 0;
+        }
+
+        .heart-icon {
+            font-size: 4.5rem;
+            filter: drop-shadow(0 0 15px var(--primary-glow));
+            transform: scale(1);
+            transition: transform 0.1s;
+        }
+
+        .bpm-container {
+            justify-content: space-around;
+        }
+
+        .metric-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .bpm-value {
+            font-size: 5rem;
+            font-weight: 700;
+            line-height: 1;
+            letter-spacing: -2px;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hrv-value {
+            font-size: 3rem;
+            font-weight: 600;
+            line-height: 1;
+            letter-spacing: -1px;
+            color: #3b82f6;
+            margin-top: 10px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .bpm-label {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        .connect-btn {
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            color: white;
+            border: none;
+            padding: 1.1rem 2.5rem;
+            font-size: 1.1rem;
+            border-radius: 99px;
+            cursor: pointer;
+            font-weight: 600;
+            letter-spacing: 1px;
+            width: 80%;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 20px -10px var(--primary);
+        }
+
+        .connect-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 25px -10px var(--primary);
+            filter: brightness(1.1);
+        }
+
+        .connect-btn:active {
+            transform: translateY(1px);
+        }
+
+        .connect-btn.connected {
+            background: #334155;
+            box-shadow: none;
+        }
+
+        .status-text {
+            margin-top: 1.25rem;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            min-height: 1.2rem;
+            transition: color 0.3s ease;
+        }
+
+        /* 动画效果：心跳放大缩小，以及波纹扩散 */
+        @keyframes heartbeat {
+            0% {
+                transform: scale(1);
+            }
+
+            15% {
+                transform: scale(1.15);
+            }
+
+            30% {
+                transform: scale(1);
+            }
+
+            45% {
+                transform: scale(1.15);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes ripple {
+            0% {
+                transform: scale(0.8);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+
+        .is-beating .heart-icon {
+            animation: heartbeat 1s infinite;
+        }
+
+        .is-beating::before {
+            animation: ripple 1s infinite;
+        }
+
+        .is-beating::after {
+            animation: ripple 1s infinite;
+            animation-delay: 0.3s;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Magene Data Center</h1>
+        </div>
+
+        <div class="heart-wrapper" id="heartAnimations">
+            <div class="heart-icon">❤️</div>
+        </div>
+
+        <div class="bpm-container">
+            <div class="metric-box">
+                <div class="bpm-value" id="bpmValue">--</div>
+                <div class="bpm-label">BPM</div>
+            </div>
+            <div class="metric-box">
+                <div class="hrv-value" id="hrvValue">--</div>
+                <div class="bpm-label">HRV (ms)</div>
+            </div>
+        </div>
+
+        <button class="connect-btn" id="connectBtn">连接心率带</button>
+        <div class="status-text" id="statusText">请将心率带佩戴在身上以唤醒设备</div>
+    </div>
+
+    <script>
+        const connectBtn = document.getElementById('connectBtn');
+        const bpmValue = document.getElementById('bpmValue');
+        const hrvValue = document.getElementById('hrvValue');
+        const statusText = document.getElementById('statusText');
+        const heartAnimations = document.getElementById('heartAnimations');
+
+        let bluetoothDevice = null;
+        let heartRateChar = null;
+
+        // 唤醒锁 (Wake Lock) 保持屏幕长亮
+        let wakeLock = null;
+
+        // 获取/释放屏幕唤醒锁的函数
+        async function requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('屏幕唤醒锁已释放');
+                    });
+                    console.log('屏幕唤醒锁已激活');
+                } catch (err) {
+                    console.error(`唤醒锁请求失败: ${err.name}, ${err.message}`);
+                }
+            } else {
+                console.warn('浏览器不支持 Wake Lock API');
+            }
+        }
+
+        // 当页面可见性改变时 (例如切换回前台)，如果已经连接，则重新请求唤醒锁
+        document.addEventListener('visibilitychange', () => {
+            if (wakeLock !== null && document.visibilityState === 'visible' && bluetoothDevice && bluetoothDevice.gatt.connected) {
+                requestWakeLock();
+            }
+        });
+
+        // HRV 分析相关变量
+        let rrIntervals = [];       // 保存最近的 R-R 间隔数据 (ms)
+        const MAX_RR_BUFFER = 60;   // 缓存最多60个心跳周期的数据用于计算 RMSSD
+
+        // 绑定点击事件
+        connectBtn.addEventListener('click', async () => {
+            // 如果已经连接，则执行断开
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                disconnectDevice();
+                return;
+            }
+
+            try {
+                // 检查浏览器是否支持 Web Bluetooth
+                if (!navigator.bluetooth) {
+                    throw new Error("您的浏览器不支持 Web Bluetooth API，请使用最新版 Google Chrome。");
+                }
+
+                statusText.innerText = '正在扫描周围的心率设备...';
+                statusText.style.color = 'var(--text-sub)';
+
+                // 1. 请求蓝牙设备，过滤条件为：提供心率服务的设备 (0x180D)
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: ['heart_rate'] }]
+                });
+
+                // 监听设备断开连接事件
+                bluetoothDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+                statusText.innerText = '正在连接到 ' + bluetoothDevice.name + '...';
+
+                // 2. 连接到 GATT 服务器
+                const server = await bluetoothDevice.gatt.connect();
+
+                statusText.innerText = '正在读取心率服务通道...';
+
+                // 3. 获取心率服务
+                const service = await server.getPrimaryService('heart_rate');
+
+                // 4. 获取心率特征值 (0x2A37)
+                heartRateChar = await service.getCharacteristic('heart_rate_measurement');
+
+                statusText.innerText = '正在启动数据同步...';
+
+                // 5. 开启 Notify，开始接收数据
+                await heartRateChar.startNotifications();
+                heartRateChar.addEventListener('characteristicvaluechanged', handleHeartRateData);
+
+                // 更新界面状态为“已连接”
+                statusText.innerText = '🔴 ' + bluetoothDevice.name + ' 传输中';
+                statusText.style.color = 'var(--success)';
+                connectBtn.innerText = '停止监测';
+                connectBtn.classList.add('connected');
+                heartAnimations.classList.add('is-beating');
+
+                // 成功连接后，请求保持屏幕长亮
+                requestWakeLock();
+
+            } catch (error) {
+                console.error("连接异常:", error);
+
+                // 如果用户点击了取消
+                if (error.name === 'NotFoundError') {
+                    statusText.innerText = '已取消连接或未找到设备';
+                } else {
+                    statusText.innerText = '出错: ' + error.message;
+                }
+                statusText.style.color = 'var(--primary)';
+            }
+        });
+
+        // 解析心率数据
+        function handleHeartRateData(event) {
+            const value = event.target.value;
+            // 第一个字节包含标志位信息
+            const flags = value.getUint8(0);
+
+            // 标志位解析
+            const is16Bit = flags & 0x01;              // bit 0: 心率值格式
+            const hasEnergyExpended = (flags & 0x08) >> 3; // bit 3: 能量消耗
+            const hasRRInterval = (flags & 0x10) >> 4;     // bit 4: RR间隔 (关键！)
+
+            let offset = 1;
+            let heartRate = 0;
+
+            // 1. 读取心率值
+            if (is16Bit) {
+                heartRate = value.getUint16(offset, true);
+                offset += 2;
+            } else {
+                heartRate = value.getUint8(offset);
+                offset += 1;
+            }
+
+            // 更新心率界面
+            bpmValue.innerText = heartRate;
+
+            // 2. 跳过能量消耗位 (如果有的话)
+            if (hasEnergyExpended) {
+                offset += 2;
+            }
+
+            // 3. 读取并处理 R-R 间隔 (HRV 原始数据)
+            if (hasRRInterval && offset < value.byteLength) {
+                // 有些设备一次发送多个 R-R 间隔，循环读取直到字节用完
+                while (offset < value.byteLength) {
+                    // 蓝牙协议规范：单位是 1/1024 秒
+                    const rrValueRaw = value.getUint16(offset, true);
+                    offset += 2;
+
+                    // 转换为毫秒 (ms)
+                    const rrMs = (rrValueRaw / 1024.0) * 1000.0;
+
+                    // 过滤掉明显错误的跳跃值 (比如大于2000ms或小于300ms的杂音)
+                    if (rrMs > 300 && rrMs < 2000) {
+                        rrIntervals.push(rrMs);
+
+                        // 保持数组长度不超过缓冲最大值
+                        if (rrIntervals.length > MAX_RR_BUFFER) {
+                            rrIntervals.shift();
+                        }
+                    }
+                }
+
+                // 计算 HRV (RMSSD算法) 并更新图表
+                calculateAndDisplayHRV();
+            }
+
+            // 动态心跳动画逻辑...
+            if (heartRate > 0) {
+                const duration = Math.max(0.3, 60 / heartRate);
+                const styleSheet = document.createElement("style");
+                styleSheet.innerText = `
+                    .is-beating .heart-icon { animation-duration: ${duration}s !important; }
+                    .is-beating::before { animation-duration: ${duration}s !important; }
+                    .is-beating::after { animation-duration: ${duration}s !important; animation-delay: ${duration * 0.3}s !important; }
+                `;
+                document.head.appendChild(styleSheet);
+            }
+        }
+
+        // 计算 RMSSD (均方根连续差异) - 这是短期 HRV 最经典的指标
+        function calculateAndDisplayHRV() {
+            if (rrIntervals.length < 5) {
+                hrvValue.innerText = "算..";
+                return; // 数据太少，不计算
+            }
+
+            let sumOfSquares = 0;
+            let validDifferences = 0;
+
+            // 在计算时采用移动窗口平滑或直接整体计算
+            for (let i = 1; i < rrIntervals.length; i++) {
+                const diff = rrIntervals[i] - rrIntervals[i - 1];
+                // 排除大于 50ms 的伪差或异位心搏 (简单的滤波)
+                if (Math.abs(diff) < 200) {
+                    sumOfSquares += diff * diff;
+                    validDifferences++;
+                }
+            }
+
+            if (validDifferences > 0) {
+                // RMSSD 计算公式：差值的平方和 -> 求平均 -> 开根号
+                const rmssd = Math.sqrt(sumOfSquares / validDifferences);
+                hrvValue.innerText = Math.round(rmssd);
+
+                // --- HRV (RMSSD) 颜色分区：根据权威医学与运动标准 ---
+                // HRV 是高度个性化的指标，但通常在人群中有以下参考区间：
+                let color = "var(--text-main)";
+                let statusMsg = "监测中";
+
+                if (rmssd >= 50) {
+                    // 绿色：完全恢复，自主神经状态极佳 (副交感神经活跃)
+                    color = "#10b981";
+                    statusMsg = "状态极佳，完全恢复";
+                } else if (rmssd >= 30) {
+                    // 蓝色/青色：正常状态，轻度压力
+                    color = "#3b82f6";
+                    statusMsg = "状态良好，轻度压力";
+                } else if (rmssd >= 15) {
+                    // 橙色/黄色：疲劳累积或压力较大 (交感神经系统开始主导)
+                    color = "#f59e0b";
+                    statusMsg = "疲劳累积，注意休息";
+                } else {
+                    // 红色：严重疲劳，或过度训练/生病前期
+                    color = "#ef4444";
+                    statusMsg = "严重疲劳，建议停止";
+                }
+
+                hrvValue.style.color = color;
+
+                // 如果只连接了心率带没在做其他操作，可以借用状态栏显示疲劳度描述
+                if (statusText.innerText.includes("传输中")) {
+                    const baseText = statusText.innerText.split('|')[0].trim();
+                    statusText.innerText = baseText + ' | ' + statusMsg;
+                }
+            }
+        }
+
+        // 主动断开连接
+        function disconnectDevice() {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+            }
+        }
+
+        // 处理设备断开
+        function onDisconnected() {
+            statusText.innerText = '设备连接已断开';
+            statusText.style.color = 'var(--text-sub)';
+            connectBtn.innerText = '重新连接';
+            connectBtn.classList.remove('connected');
+            bpmValue.innerText = '--';
+            hrvValue.innerText = '--';
+            hrvValue.style.color = '#3b82f6'; // 恢复默认蓝色
+            heartAnimations.classList.remove('is-beating');
+            bluetoothDevice = null;
+            rrIntervals = []; // 清空数据
+
+            // 释放屏幕唤醒锁
+            if (wakeLock !== null) {
+                wakeLock.release()
+                    .then(() => { wakeLock = null; });
+            }
+        }
+    </script>
+</body>
+
+</html>
